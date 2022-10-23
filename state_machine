@@ -41,35 +41,33 @@ signal dmao : ahb_dma_out_type;
 begin
 
 --instantiate state_machine component and make the connections:
-  state_machine: PROCESS(curState, rxData, rxNow)
+  state_machine: PROCESS(currentState, HTRANS)
   BEGIN  
     aNNN_valid <= '0';
     rxDone <= '0';
     
-    CASE curState IS 
+    CASE currentState IS 
       
       WHEN IDLE =>
-        bcd_array <= ("1111", "1111", "1111");  -- initialise the array
-        numWords_bcd <= BCD_array;
-        IF rxNow = '1' THEN
-          rxDone<= '1';
-          IF rxData = X"61" OR rxData = X"41" THEN --in decimal 97(a) and 65(A)
-            nextState <= READ_A_a;
-          ELSE
-            nextState <= IDLE;
-          END IF;
+        HREADY <= '1';
+        dmai.start <= '0';
+        
+        IF HTRANS = "10" THEN
+          dmai.start <= '1';
+          nextState <= instr_fetch;
+        ELSE
+          nextState <= IDLE;
         END IF;
         
       WHEN instr_fetch =>
-        IF rxNow = '1' THEN
-          rxDone<= '1';
-          IF ((rxData >= X"30") OR (rxData <= X"39")) THEN
-            nextState <= READ_N1;
-          ELSIF (rxData = X"61" OR rxData = X"41") THEN
-            nextState <= READ_A_a;
-          ELSE
-            nextState <= IDLE;
-          END IF;
+        HREADY <= '0';
+        dmai.start <= '0';
+        
+        IF dmao.ready = '1' THEN
+          HREADY <= '1';
+          nextState <= IDLE;
+        ELSE
+          nextState <= IDLE;
         END IF;
         
       WHEN OTHERS => 
@@ -77,12 +75,12 @@ begin
     END CASE;
   END PROCESS;
 
-  stateReg: PROCESS(reset,clk)
+  stateReg: PROCESS(rstn,clkm)
   BEGIN
-    IF reset = '1'  THEN
-      curState <= IDLE;
-    ELSIF clk'event AND clk = '1' THEN
-      curState <= nextState;
+    IF rstn = '1'  THEN
+      currentState <= IDLE;
+    ELSIF clkm'event AND clkm = '1' THEN
+      currentState <= nextState;
     END IF;
   END PROCESS;
 
