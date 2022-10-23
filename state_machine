@@ -9,6 +9,7 @@ library gaisler;
 use gaisler.misc.all;
 library UNISIM;
 use UNISIM.VComponents.all;
+
 entity AHB_bridge is
  port(
  -- Clock and Reset -----------------
@@ -27,16 +28,65 @@ entity AHB_bridge is
  HREADY : out std_logic -- AHB stall signal
  );
 end;
+
 architecture structural of AHB_bridge is
---declare a component for state_machine
- 
+
+--declare a component for state_machine 
 --declare a component for ahbmst 
 --declare a component for data_swapper 
  
 signal dmai : ahb_dma_in_type;
 signal dmao : ahb_dma_out_type;
+
 begin
---instantiate state_machine component and make the connections
+
+--instantiate state_machine component and make the connections:
+  state_machine: PROCESS(curState, rxData, rxNow)
+  BEGIN  
+    aNNN_valid <= '0';
+    rxDone <= '0';
+    
+    CASE curState IS 
+      
+      WHEN IDLE =>
+        bcd_array <= ("1111", "1111", "1111");  -- initialise the array
+        numWords_bcd <= BCD_array;
+        IF rxNow = '1' THEN
+          rxDone<= '1';
+          IF rxData = X"61" OR rxData = X"41" THEN --in decimal 97(a) and 65(A)
+            nextState <= READ_A_a;
+          ELSE
+            nextState <= IDLE;
+          END IF;
+        END IF;
+        
+      WHEN instr_fetch =>
+        IF rxNow = '1' THEN
+          rxDone<= '1';
+          IF ((rxData >= X"30") OR (rxData <= X"39")) THEN
+            nextState <= READ_N1;
+          ELSIF (rxData = X"61" OR rxData = X"41") THEN
+            nextState <= READ_A_a;
+          ELSE
+            nextState <= IDLE;
+          END IF;
+        END IF;
+        
+      WHEN OTHERS => 
+        nextState <= IDLE;
+    END CASE;
+  END PROCESS;
+
+  stateReg: PROCESS(reset,clk)
+  BEGIN
+    IF reset = '1'  THEN
+      curState <= IDLE;
+    ELSIF clk'event AND clk = '1' THEN
+      curState <= nextState;
+    END IF;
+  END PROCESS;
+
 --instantiate the ahbmst component and make the connections 
 --instantiate the data_swapper component and make the connections
+
 end structural;
