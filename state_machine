@@ -10,41 +10,86 @@ use gaisler.misc.all;
 library UNISIM;
 use UNISIM.VComponents.all;
 
-entity AHB_bridge is
- port(
- -- Clock and Reset -----------------
- clkm : in std_logic;
- rstn : in std_logic;
- -- AHB Master records --------------
- ahbmi : in ahb_mst_in_type;
- ahbmo : out ahb_mst_out_type;
- -- ARM Cortex-M0 AHB-Lite signals -- 
- HADDR : in std_logic_vector (31 downto 0); -- AHB transaction address
- HSIZE : in std_logic_vector (2 downto 0); -- AHB size: byte, half-word or word
- HTRANS : in std_logic_vector (1 downto 0); -- AHB transfer: non-sequential only
- HWDATA : in std_logic_vector (31 downto 0); -- AHB write-data
- HWRITE : in std_logic; -- AHB write control
- HRDATA : out std_logic_vector (31 downto 0); -- AHB read-data
- HREADY : out std_logic -- AHB stall signal
- );
-end;
+-- ENTITY FOR THE STATE MACHINE
+ENTITY state_machine IS
+  PORT(
+    
+-- clock and reset
+    clkm : in std_logic;
+    rstn : in std_logic;
+    
+-- AHB Master records --------------
+    dmai : in ahb_mst_in_type;
+    dmao : out ahb_mst_out_type;
+    
+-- ARM Cortex-M0 AHB-Lite signals -- 
+    HADDR : in std_logic_vector (31 downto 0); -- AHB transaction address
+    HSIZE : in std_logic_vector (2 downto 0); -- AHB size: byte, half-word or word
+    HTRANS : in std_logic_vector (1 downto 0); -- AHB transfer: non-sequential only
+    HWDATA : in std_logic_vector (31 downto 0); -- AHB write-data
+    HWRITE : in std_logic; -- AHB write control
+    HREADY : out std_logic -- AHB stall signal
+    
+  );
+END state_machine;
 
-architecture structural of AHB_bridge is
+-- ARCHITECTURE FOR THE STATE MACHINE
+ARCHITECTURE structural OF state_machine IS
+  
+  COMPONENT CORTEXM0DS IS
+    PORT(
+      HCLK : IN std_logic;              -- Clock
+      HRESETn : IN std_logic;           -- Asynchronous reset
+    
+      HADDR : OUT std_logic_vector (31 downto 0);             -- AHB transaction address
+      HBURST : OUT std_logic_vector (2 downto 0);            -- AHB burst: tied to single
+      HMASTLOCK : OUT std_logic;         -- AHB locked transfer (always zero)
+      HPROT : OUT std_logic_vector (3 downto 0);              -- AHB protection: priv; data or inst
+      HSIZE : OUT std_logic_vector (2 downto 0);             -- AHB size: byte, half-word or word
+      HTRANS : OUT std_logic_vector (1 downto 0);            -- AHB transfer: non-sequential only
+      HWDATA : OUT std_logic_vector (31 downto 0);             -- AHB write-data
+      HWRITE : OUT std_logic;            -- AHB write control
+      HRDATA : IN std_logic_vector (31 downto 0);            -- AHB read-data
+      HREADY : IN std_logic;            -- AHB stall signal
+      HRESP : IN std_logic;             -- AHB error response
+      
+      NMI : IN std_logic;  
+      IRQ : IN std_logic_vector (15 downto 0);               -- Interrupt request inputs
+      TXEV : OUT std_logic;              -- Event output (SEV executed)
+      RXEV : IN std_logic;              -- Event input
+      LOCKUP : OUT std_logic;            -- Core is locked-up
+      SYSRESETREQ : OUT std_logic;       -- System reset request
+    
+      SLEEPING : OUT std_logic          -- Core and NVIC sleeping           
+    );
+    
+  END COMPONENT;
+  COMPONENT ahbmst IS
+    PORT(
+      rst  : in  std_ulogic;
+      clk  : in  std_ulogic;
+      dmai : in ahb_dma_in_type;
+      dmao : out ahb_dma_out_type;
+      ahbi : in  ahb_mst_in_type;
+      ahbo : out ahb_mst_out_type 
+    );
+    
+  END COMPONENT;
+  
+  TYPE state_type IS (IDLE, instr_fetch);
+  SIGNAL currentState, nextState: state_type;
+  SIGNAL  
+-- ALL THE SIGNALS
 
---declare a component for state_machine 
---declare a component for ahbmst 
---declare a component for data_swapper 
- 
-signal dmai : ahb_dma_in_type;
-signal dmao : ahb_dma_out_type;
 
-begin
 
---instantiate state_machine component and make the connections:
+BEGIN
+  
   state_machine: PROCESS(currentState, HTRANS)
   BEGIN  
-    aNNN_valid <= '0';
-    rxDone <= '0';
+  
+    HREADY <= '1';
+    dmai.start <= '0';
     
     CASE currentState IS 
       
@@ -83,8 +128,5 @@ begin
       currentState <= nextState;
     END IF;
   END PROCESS;
-
---instantiate the ahbmst component and make the connections 
---instantiate the data_swapper component and make the connections
-
-end structural;
+  
+END structural;
