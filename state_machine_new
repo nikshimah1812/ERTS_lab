@@ -98,47 +98,48 @@ ARCHITECTURE structural OF state_machine IS
         WHEN IDLE =>
           IF HTRANS = "10" THEN
             dmai.start <= '1';
-            nextState <= instr_fetch;
+            nextState <= SEND_START;
           ELSE
             nextState <= IDLE;
           END IF;
-
-        WHEN instr_fetch =>
-          HREADY <= '0';
-          dmai.start <= '0';
-
+          
+        WHEN SEND_START =>
+          nextState <= instr_fetch;
+          
+        WHEN instr_fetch =>          
           IF dmao.ready = '1' THEN
-            HREADY <= '1';
-            nextState <= IDLE;
+            nextState <= READY_HIGH;
           ELSE
-            nextState <= IDLE;
+            nextState <= instr_fetch;
           END IF;
-
-        WHEN OTHERS => 
+          
+        WHEN READY_HIGH =>
           nextState <= IDLE;
-      END CASE;
-    END PROCESS;
-
-    output_logic: PROCESS(currentState)
-    BEGIN
-      HREADY <= '0';
-      dmai.start <= '0';
-
-      CASE currentState IS 
-
-        WHEN IDLE =>
-          HREADY <= '1';
-          dmai.start <= '0';
-
-        WHEN instr_fetch =>
-          HREADY <= '0';
-          dmai.start <= '0';
           
         WHEN OTHERS => 
           nextState <= IDLE;
       END CASE;
     END PROCESS;
 
+    comb_output_logic: PROCESS(currentState)
+    BEGIN
+      HREADY <= '0';
+      dmai.start <= '0';
+      
+      IF currentState = IDLE THEN
+        HREADY <= '1';
+        dmai.start <= '0';
+      ELSIF currentState = SEND_START THEN
+        HREADY <= '1';
+        dmai.start <= '1';
+      ELSIF currentState = instr_fetch THEN
+        HREADY <= '0';
+        dmai.start <= '0';
+      ELSIF currentState = READY_HIGH THEN
+        HREADY <= '1';
+        dmai.start <= '0';
+
+    END PROCESS;
 
     stateReg: PROCESS(rstn,clkm)
     BEGIN
