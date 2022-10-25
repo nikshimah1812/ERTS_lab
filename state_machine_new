@@ -121,6 +121,7 @@ ARCHITECTURE structural OF state_machine IS
       END CASE;
     END PROCESS;
 
+-- output logic as combinational logic
     comb_output_logic: PROCESS(currentState)
     BEGIN
       HREADY <= '0';
@@ -139,6 +140,37 @@ ARCHITECTURE structural OF state_machine IS
         HREADY <= '1';
         dmai.start <= '0';
 
+    END PROCESS;
+ 
+ -- another approach, not sure which one is better
+    output_logic: PROCESS(currentState)
+    BEGIN
+      CASE currentState IS 
+      
+       HREADY <= '0';
+       dmai.start <= '0';
+       
+        WHEN IDLE =>
+          HREADY <= '1';
+          dmai.start <= '0';
+          
+        WHEN SEND_START =>
+          HREADY <= '1';
+          dmai.start <= '1';
+          
+        WHEN instr_fetch =>
+          HREADY <= '0';
+          dmai.start <= '0';
+          
+        WHEN READY_HIGH =>
+          HREADY <= '1';
+          dmai.start <= '0';
+          
+        WHEN OTHERS => 
+          HREADY <= '0';
+          dmai.start <= '0';
+      
+      END CASE;
     END PROCESS;
 
     stateReg: PROCESS(rstn,clkm)
