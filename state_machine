@@ -19,8 +19,8 @@ ENTITY state_machine IS
     rstn : in std_logic;
     
 -- AHB Master records --------------
-    dmai : in ahb_mst_in_type;
-    dmao : out ahb_mst_out_type;
+    dmai : out ahb_dma_in_type;
+    dmao : in ahb_dma_out_type;
     
 -- ARM Cortex-M0 AHB-Lite signals -- 
     HADDR : in std_logic_vector (31 downto 0); -- AHB transaction address
@@ -78,38 +78,35 @@ ARCHITECTURE structural OF state_machine IS
   
   TYPE state_type IS (IDLE, instr_fetch);
   SIGNAL currentState, nextState: state_type;
-  SIGNAL  
--- ALL THE SIGNALS
-
 
 
 BEGIN
   
+  --dmai signals connected directly from the CortexM0
+  dmai.address <= HADDR;
+  dmai.size <= HSIZE;
+  dmai.wdata <= HWDATA;
+  dmai.write <= HWRITE;
+  
+  -- dmai signals connected to the ground/not connected
+  dmai.busy <= '0';
+  dmai.irq <= '0';
+  dmai.burst <= '0';
+    
   state_machine: PROCESS(currentState, HTRANS)
   BEGIN  
-  
-    HREADY <= '1';
-    dmai.start <= '0';
     
     CASE currentState IS 
       
-      WHEN IDLE =>
-        HREADY <= '1';
-        dmai.start <= '0';
-        
+      WHEN IDLE =>        
         IF HTRANS = "10" THEN
-          dmai.start <= '1';
           nextState <= instr_fetch;
         ELSE
           nextState <= IDLE;
         END IF;
         
       WHEN instr_fetch =>
-        HREADY <= '0';
-        dmai.start <= '0';
-        
         IF dmao.ready = '1' THEN
-          HREADY <= '1';
           nextState <= IDLE;
         ELSE
           nextState <= IDLE;
@@ -119,6 +116,30 @@ BEGIN
         nextState <= IDLE;
     END CASE;
   END PROCESS;
+  
+  output_logic: PROCESS(currentState)
+  BEGIN
+    
+    HREADY <= '0';
+    dmai.start <= '0';
+    
+    CASE currentState IS 
+         
+      WHEN IDLE =>
+        HREADY <= '1';
+        dmai.start <= '0';
+        
+      WHEN instr_fetch =>
+        HREADY <= '0';
+        dmai.start <= '0';
+        
+      WHEN OTHERS => 
+        HREADY <= '0';
+        dmai.start <= '0';
+    
+    END CASE;
+  END PROCESS;
+    
 
   stateReg: PROCESS(rstn,clkm)
   BEGIN
