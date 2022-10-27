@@ -19,8 +19,8 @@ ENTITY state_machine IS
     rstn : in std_logic;
     
 -- AHB Master records --------------
-    dmai : in ahb_mst_in_type;
-    dmao : out ahb_mst_out_type;
+    dmai : out ahb_dma_in_type;
+    dmao : in ahb_dma_out_type;
     
 -- ARM Cortex-M0 AHB-Lite signals -- 
     HADDR : in std_logic_vector (31 downto 0); -- AHB transaction address
@@ -76,7 +76,7 @@ ARCHITECTURE structural OF state_machine IS
     
   END COMPONENT;
   
-  TYPE state_type IS (IDLE, instr_fetch);
+  TYPE state_type IS (IDLE, instr_fetch, SEND_START, READY_HIGH);
   SIGNAL currentState, nextState: state_type;
   
   BEGIN
@@ -97,7 +97,6 @@ ARCHITECTURE structural OF state_machine IS
       CASE currentState IS 
         WHEN IDLE =>
           IF HTRANS = "10" THEN
-            dmai.start <= '1';
             nextState <= SEND_START;
           ELSE
             nextState <= IDLE;
@@ -122,34 +121,34 @@ ARCHITECTURE structural OF state_machine IS
     END PROCESS;
 
 -- output logic as combinational logic
-    comb_output_logic: PROCESS(currentState)
-    BEGIN
-      HREADY <= '0';
-      dmai.start <= '0';
-      
-      IF currentState = IDLE THEN
-        HREADY <= '1';
-        dmai.start <= '0';
-      ELSIF currentState = SEND_START THEN
-        HREADY <= '1';
-        dmai.start <= '1';
-      ELSIF currentState = instr_fetch THEN
-        HREADY <= '0';
-        dmai.start <= '0';
-      ELSIF currentState = READY_HIGH THEN
-        HREADY <= '1';
-        dmai.start <= '0';
-
-    END PROCESS;
+--    comb_output_logic: PROCESS(currentState)
+--    BEGIN
+--      HREADY <= '0';
+--      dmai.start <= '0';
+--      
+--      IF currentState = IDLE THEN
+--        HREADY <= '1';
+--        dmai.start <= '0';
+--      ELSIF currentState = SEND_START THEN
+--        HREADY <= '1';
+--        dmai.start <= '1';
+--      ELSIF currentState = instr_fetch THEN
+--        HREADY <= '0';
+--        dmai.start <= '0';
+--      ELSIF currentState = READY_HIGH THEN
+--        HREADY <= '1';
+--        dmai.start <= '0';
+--
+--    END PROCESS;
  
  -- another approach, not sure which one is better
     output_logic: PROCESS(currentState)
     BEGIN
-      CASE currentState IS 
-      
-       HREADY <= '0';
+      HREADY <= '0';
        dmai.start <= '0';
-       
+      
+      CASE currentState IS 
+         
         WHEN IDLE =>
           HREADY <= '1';
           dmai.start <= '0';
@@ -175,7 +174,7 @@ ARCHITECTURE structural OF state_machine IS
 
     stateReg: PROCESS(rstn,clkm)
     BEGIN
-      IF rstn = '1'  THEN
+      IF rstn = '0'  THEN
         currentState <= IDLE;
       ELSIF clkm'event AND clkm = '1' THEN
         currentState <= nextState;
